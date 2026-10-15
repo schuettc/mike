@@ -1,3 +1,4 @@
+import { BedrockClient } from "@aws-sdk/client-bedrock";
 import type { Db } from "../../lib/supabase";
 import {
     bedrockCredentials,
@@ -10,6 +11,15 @@ import type { CatalogModel, CatalogResult } from "./models.service";
 
 function modelId(value: unknown): value is string {
     return typeof value === "string" && value.length > 0 && value.length <= 200 && !/\s/.test(value);
+}
+
+/**
+ * The IAM-mode catalog client. Explicit endpoint, as for API keys: never
+ * AWS_ENDPOINT_URL* from the environment. SigV4 only: the SDK otherwise
+ * switches to bearer auth whenever AWS_BEARER_TOKEN_BEDROCK is set.
+ */
+export function bedrockCatalogClient(region: string, endpoint: string): BedrockClient {
+    return new BedrockClient({ region, endpoint, authSchemePreference: ["sigv4"] });
 }
 
 /** Regional foundation models and account-visible inference profiles. No keys leave the backend. */
@@ -43,9 +53,8 @@ export async function listBedrockModels(
         const signal = AbortSignal.timeout(15_000);
         let read: (path: "foundation" | "profiles", nextToken?: string) => Promise<Record<string, unknown>>;
         if (credentials.auth === "iam") {
-            const { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } = await import("@aws-sdk/client-bedrock");
-            // Explicit endpoint, as for API keys: never AWS_ENDPOINT_URL* from the environment.
-            const client = new BedrockClient({ region, endpoint: base });
+            const { ListFoundationModelsCommand, ListInferenceProfilesCommand } = await import("@aws-sdk/client-bedrock");
+            const client = bedrockCatalogClient(region, base);
             read = async (path, nextToken) => {
                 const payload: unknown = path === "foundation"
                     ? await client.send(new ListFoundationModelsCommand({ byOutputModality: "TEXT" }), { abortSignal: signal })
