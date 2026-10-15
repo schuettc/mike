@@ -167,8 +167,11 @@ function envApiKey(provider: ApiKeyProvider): string | null {
             return process.env.OPENCODE_API_KEY?.trim() || null;
         // A cloud key without its region/endpoint cannot be used, so the
         // environment only counts as configured when both halves are set.
-        case "bedrock":
-            return envBedrockCredentials()?.apiKey ?? null;
+        // IAM mode has no key to hand out; hasEnvApiKey reports it.
+        case "bedrock": {
+            const credentials = envBedrockCredentials();
+            return credentials?.auth === "apiKey" ? credentials.apiKey : null;
+        }
         case "azure":
             return envAzureCredentials()?.apiKey ?? null;
         case "azure-foundry":
@@ -189,6 +192,7 @@ function envApiKey(provider: ApiKeyProvider): string | null {
 }
 
 export function hasEnvApiKey(provider: ApiKeyProvider): boolean {
+    if (provider === "bedrock") return envBedrockCredentials() !== null;
     return !!envApiKey(provider);
 }
 

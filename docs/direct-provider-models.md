@@ -76,6 +76,12 @@ restores the environment pair. If a saved region or endpoint stops validating,
 the provider is reported as not configured and is unusable for that user until
 it is fixed: it does not fall back to the deployment's pair.
 
+A deployment running on AWS can set `BEDROCK_AUTH=iam` with
+`BEDROCK_AWS_REGION` instead of a Bedrock key: Mike then signs Bedrock
+requests with the AWS default credential chain (for example an ECS task role),
+and ignores `AWS_BEARER_TOKEN_BEDROCK`. A user's own saved key still takes
+precedence.
+
 Once the key is saved, open the provider in Bring Your Own Keys and add models
 under Model Selections. Bedrock lists the region's text foundation models and
 the account's active inference profiles from the saved key

@@ -164,6 +164,7 @@ describe("user API key precedence", () => {
 describe("cloud-platform keys", () => {
     const envVars = [
         "AWS_BEARER_TOKEN_BEDROCK",
+        "BEDROCK_AUTH",
         "BEDROCK_AWS_REGION",
         "AWS_REGION",
         "AZURE_API_KEY",
@@ -230,6 +231,24 @@ describe("cloud-platform keys", () => {
         process.env.AZURE_RESOURCE_NAME = "contoso-openai";
         expect(hasEnvApiKey("bedrock")).toBe(true);
         expect(hasEnvApiKey("azure")).toBe(true);
+    });
+
+    it("reports Bedrock IAM mode as configured without handing out a key", async () => {
+        process.env.BEDROCK_AUTH = "iam";
+        process.env.BEDROCK_AWS_REGION = "us-east-1";
+        // Ignored in IAM mode: the credential chain signs, not this key.
+        process.env.AWS_BEARER_TOKEN_BEDROCK = "env-bedrock";
+        const { db } = memoryDb();
+
+        expect(hasEnvApiKey("bedrock")).toBe(true);
+        await expect(getUserApiKeys("user-1", db)).resolves.toMatchObject({
+            bedrock: null,
+            providerSettings: { bedrock: { region: "us-east-1" } },
+        });
+        await expect(getUserApiKeyStatus("user-1", db)).resolves.toMatchObject({
+            bedrock: true,
+            sources: { bedrock: "env" },
+        });
     });
 
     it("saves the setting with the key and replaces the environment's pair", async () => {

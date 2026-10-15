@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   awsDnsSuffix,
+  bedrockCredentials,
   bedrockServiceUrl,
   azureClientTarget,
   azureFoundryCredentials,
   credentialEndpointHost,
   customEndpointCredentials,
+  envBedrockCredentials,
   normalizeAwsRegion,
   normalizeAzureEndpoint,
   normalizeAzureFoundryEndpoint,
@@ -289,6 +291,50 @@ describe("credentials for a request", () => {
         providerSettings: { custom: { baseUrl: "https://llm.example.com/v1" } },
       }),
     ).toEqual({ apiKey: "sk-1", baseUrl: "https://llm.example.com/v1" });
+  });
+});
+
+describe("Bedrock IAM mode", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("envBedrockCredentials returns iam credentials when BEDROCK_AUTH=iam", () => {
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
+    vi.stubEnv("BEDROCK_AUTH", "iam");
+    vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+    expect(envBedrockCredentials()).toEqual({ auth: "iam", region: "us-east-1" });
+  });
+
+  it("ignores BEDROCK_AUTH without a region", () => {
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
+    vi.stubEnv("BEDROCK_AUTH", "iam");
+    vi.stubEnv("BEDROCK_AWS_REGION", "");
+    vi.stubEnv("AWS_REGION", "");
+    expect(envBedrockCredentials()).toBeNull();
+  });
+
+  it("keeps API-key mode when BEDROCK_AUTH is not iam", () => {
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "env-key");
+    vi.stubEnv("BEDROCK_AUTH", "");
+    vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+    expect(envBedrockCredentials()).toEqual({
+      auth: "apiKey",
+      apiKey: "env-key",
+      region: "us-east-1",
+    });
+  });
+
+  it("a user key still wins over iam mode", () => {
+    vi.stubEnv("BEDROCK_AUTH", "iam");
+    vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+    expect(
+      bedrockCredentials({
+        bedrock: "user-key",
+        providerSettings: { bedrock: { region: "eu-west-2" } },
+      }),
+    ).toEqual({ auth: "apiKey", apiKey: "user-key", region: "eu-west-2" });
+    expect(bedrockCredentials({})).toEqual({ auth: "iam", region: "us-east-1" });
   });
 });
 

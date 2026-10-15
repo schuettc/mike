@@ -133,6 +133,35 @@ describe("Amazon Bedrock adapter", () => {
     expect(headers.get("authorization")).toBe("Bearer env-key");
   });
 
+  it("createBedrockAdapter uses a credential provider and no apiKey in iam mode", async () => {
+    // The AWS credential chain resolves these (on ECS: the task role) and
+    // the request is SigV4-signed instead of carrying a bearer token.
+    vi.stubEnv("BEDROCK_AUTH", "iam");
+    vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+    // IAM mode is explicit: a bearer token left in the environment is not used.
+    vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "stray-env-key");
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIA-task-role");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "task-role-secret");
+    vi.stubEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", "https://runtime-collector.example.test");
+    const fetchMock = vi.fn().mockResolvedValue(bedrockConverseResponse());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      completeWithProvider({
+        model: "bedrock/us.anthropic.claude-opus-5-5",
+        user: "Name this review",
+      }),
+    ).resolves.toBe("Review title");
+
+    const { url, headers } = requestOf(fetchMock);
+    expect(url).toBe(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-opus-5-5/converse",
+    );
+    expect(headers.get("authorization")).toMatch(
+      /^AWS4-HMAC-SHA256 Credential=AKIA-task-role\/\d{8}\/us-east-1\/bedrock\//,
+    );
+  });
+
   // PR #608 regression: @ai-sdk/amazon-bedrock only sends
   // inferenceConfig.maxTokens when it is given one, so Bedrock's small
   // server-side default capped every Claude answer (thinking included),

@@ -15,6 +15,27 @@ const { getUserApiKeys, getOrgWorkKeys, memberOf, guardedFetch } = vi.hoisted(
 
 vi.mock("../../../lib/mcp/client", () => ({ guardedFetch }));
 
+// IAM-mode Bedrock catalog: the SDK client signs with the AWS credential chain.
+const { bedrockSend, bedrockClientConfigs } = vi.hoisted(() => ({
+    bedrockSend: vi.fn(),
+    bedrockClientConfigs: [] as unknown[],
+}));
+vi.mock("@aws-sdk/client-bedrock", () => {
+    class Command {
+        constructor(public input: Record<string, unknown>) {}
+    }
+    return {
+        BedrockClient: class {
+            constructor(config: unknown) {
+                bedrockClientConfigs.push(config);
+            }
+            send = bedrockSend;
+        },
+        ListFoundationModelsCommand: class extends Command {},
+        ListInferenceProfilesCommand: class extends Command {},
+    };
+});
+
 vi.mock("../../../middleware/auth", () => ({
     requireAuth: (
         _req: unknown,
@@ -613,6 +634,55 @@ describe("GET /models/bedrock", () => {
         const response = await request(app).get("/models/bedrock");
         expect(response.status).toBe(502);
         expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+});
+
+describe("GET /models/bedrock in IAM mode", () => {
+    const fetchMock = vi.fn();
+    const arn = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-5-5";
+    beforeEach(() => {
+        vi.stubGlobal("fetch", fetchMock);
+        fetchMock.mockReset();
+        bedrockSend.mockReset();
+        bedrockClientConfigs.length = 0;
+        vi.stubEnv("BEDROCK_AUTH", "iam");
+        vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+        vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
+        getUserApiKeys.mockResolvedValue({ providerSettings: { bedrock: { region: "us-east-1" } } });
+    });
+    afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.clearAllMocks(); });
+
+    it("listBedrockModels in iam mode lists via the SDK client", async () => {
+        bedrockSend.mockImplementation(async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+            if (command.constructor.name === "ListFoundationModelsCommand") return { modelSummaries: [
+                { modelId: "anthropic.claude-sonnet-5-5", modelArn: arn, modelName: "Claude Sonnet 5.5", outputModalities: ["TEXT"], inferenceTypesSupported: ["ON_DEMAND"] },
+            ] };
+            if (!command.input.nextToken) return { inferenceProfileSummaries: [
+                { inferenceProfileId: "us.anthropic.claude-sonnet-5-5", inferenceProfileName: "US Claude Sonnet 5.5", type: "SYSTEM_DEFINED", status: "ACTIVE", models: [{ modelArn: arn }] },
+            ], nextToken: "page-2" };
+            return { inferenceProfileSummaries: [
+                { inferenceProfileId: "a1b2c3d4e5f6", inferenceProfileName: "Acme team", type: "APPLICATION", status: "ACTIVE", models: [{ modelArn: arn }] },
+            ] };
+        });
+        const response = await request(app).get("/models/bedrock");
+        expect(response.status).toBe(200);
+        expect(response.body.models).toEqual([
+            { id: "anthropic.claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
+            { id: "us.anthropic.claude-sonnet-5-5", label: "US Claude Sonnet 5.5" },
+        ]);
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(bedrockClientConfigs).toEqual([
+            expect.objectContaining({ region: "us-east-1", endpoint: "https://bedrock.us-east-1.amazonaws.com" }),
+        ]);
+        expect(bedrockSend.mock.calls[0][0].input).toEqual({ byOutputModality: "TEXT" });
+        expect(bedrockSend.mock.calls[2][0].input).toMatchObject({ nextToken: "page-2" });
+    });
+
+    it("returns a safe failure when the role may not list models", async () => {
+        bedrockSend.mockRejectedValue(Object.assign(new Error("User: arn:aws:sts::123456789012:assumed-role/x is not authorized"), { name: "AccessDeniedException" }));
+        const response = await request(app).get("/models/bedrock");
+        expect(response.status).toBe(502);
+        expect(JSON.stringify(response.body)).not.toContain("123456789012");
     });
 });
 
