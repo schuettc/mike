@@ -16,6 +16,7 @@ const keys: ApiKeyState = {
     vercel: { configured: false, source: null },
     "opencode-go": { configured: false, source: null },
     bedrock: { configured: true, source: "user" },
+    "bedrock-iam": { configured: false, source: null },
     azure: { configured: false, source: null },
     "azure-foundry": { configured: false, source: null },
     vertex: { configured: true, source: "user" },

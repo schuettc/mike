@@ -1064,6 +1064,7 @@ export type ApiKeyProvider =
     | "vercel"
     | "opencode-go"
     | "bedrock"
+    | "bedrock-iam"
     | "azure"
     | "azure-foundry"
     | "vertex"
@@ -1177,6 +1178,11 @@ export function getBedrockModels(
     workspace?: string,
 ): Promise<RouterCatalogModel[]> {
     return getProviderCatalog("bedrock", workspace);
+}
+
+/** Bedrock models listed with the deployment's AWS role (Amazon Bedrock (IAM)). */
+export function getBedrockIamModels(): Promise<RouterCatalogModel[]> {
+    return getProviderCatalog("bedrock-iam");
 }
 
 export function getXaiModels(

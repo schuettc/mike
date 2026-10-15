@@ -9,6 +9,7 @@ export const API_KEY_PROVIDERS: readonly ApiKeyProvider[] = [
     "vercel",
     "opencode-go",
     "bedrock",
+    "bedrock-iam",
     "azure",
     "azure-foundry",
     "vertex",

@@ -99,6 +99,18 @@ export const MODEL_API_KEY_FIELDS: readonly ModelApiKeyField[] = [
     },
 ];
 
+/**
+ * Amazon Bedrock (IAM), listed on a person's Bring Your Own Keys page only
+ * when the deployment's AWS role is configured. It has no key, so it is not
+ * in the list above, which an organization's Model Providers tab shares.
+ */
+export const BEDROCK_IAM_FIELD: ModelApiKeyField = {
+    provider: "bedrock-iam",
+    name: "Amazon Bedrock (IAM)",
+    logo: "bedrock-color",
+    label: "Amazon Bedrock (IAM)",
+};
+
 /** A provider's logo, or a pulsing stand-in while its state is loading. */
 export function ModelProviderIcon({
     field,

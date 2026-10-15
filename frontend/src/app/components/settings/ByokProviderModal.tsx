@@ -159,6 +159,24 @@ export function ByokProviderModal({ provider, enabledToggle, store, onClose }: {
 
   if (!provider) return null;
 
+  // Amazon Bedrock (IAM) runs on the deployment's AWS role: there is no key
+  // or setting to save, only its Model Selections.
+  if (provider.provider === "bedrock-iam") {
+    return (
+      <Modal
+        open
+        onClose={onClose}
+        breadcrumbs={[store?.breadcrumb ?? "Model Providers", provider.name]}
+        size="md"
+        className="h-auto max-h-[calc(100vh-2rem)]"
+      >
+        <div data-modal-scroll="vertical" className="min-h-0 min-w-0 space-y-6 overflow-y-auto pb-4">
+          <RouterSettingsSection provider="bedrock-iam" store={store?.routerModels} />
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <ApiKeyField
       key={provider.provider}

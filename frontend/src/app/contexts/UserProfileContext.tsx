@@ -148,6 +148,7 @@ function emptyApiKeys(): ApiKeyState {
         vercel: { configured: false, source: null },
         "opencode-go": { configured: false, source: null },
         bedrock: { configured: false, source: null },
+        "bedrock-iam": { configured: false, source: null },
         azure: { configured: false, source: null },
         "azure-foundry": { configured: false, source: null },
         vertex: { configured: false, source: null },

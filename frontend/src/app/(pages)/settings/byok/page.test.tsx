@@ -2,10 +2,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { updateApiKey, updateApiKeyEnabled, azureEnabled } = vi.hoisted(() => ({
+const { updateApiKey, updateApiKeyEnabled, updateRouterModels, azureEnabled, bedrockIam } = vi.hoisted(() => ({
     updateApiKey: vi.fn(async () => true),
     updateApiKeyEnabled: vi.fn<(provider: string, enabled: boolean) => Promise<boolean>>(),
+    updateRouterModels: vi.fn<(router: string, models: string[]) => Promise<boolean>>(),
     azureEnabled: { value: true },
+    // Amazon Bedrock (IAM): configured by the deployment, on while it has models.
+    bedrockIam: { configured: false, models: [] as string[] },
 }));
 
 vi.mock("@/app/components/popups/MfaVerificationPopup", () => ({
@@ -30,6 +33,9 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
                 vercel: notConfigured,
                 "opencode-go": notConfigured,
                 bedrock: notConfigured,
+                "bedrock-iam": bedrockIam.configured
+                    ? { configured: true, source: "env" }
+                    : notConfigured,
                 azure: { configured: azureEnabled.value, enabled: azureEnabled.value, source: "user" },
                 "azure-foundry": notConfigured,
                 vertex: notConfigured,
@@ -38,9 +44,11 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
                 courtlistener: notConfigured,
             },
             apiKeySettings: { azure: { endpoint: "contoso-openai" } },
+            bedrockIamModels: bedrockIam.models,
         },
         updateApiKey,
         updateApiKeyEnabled,
+        updateRouterModels,
     }),
 }));
 
@@ -50,6 +58,8 @@ describe("BYOK page cloud-platform keys", () => {
     beforeEach(() => {
         updateApiKey.mockClear();
         azureEnabled.value = true;
+        bedrockIam.configured = false;
+        bedrockIam.models = [];
         updateApiKeyEnabled.mockReset().mockImplementation(async (_provider, enabled) => {
             azureEnabled.value = enabled;
             return true;
@@ -311,4 +321,102 @@ describe("BYOK page cloud-platform keys", () => {
         expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
     });
 
+});
+
+describe("BYOK page Amazon Bedrock (IAM)", () => {
+    beforeEach(() => {
+        azureEnabled.value = true;
+        bedrockIam.configured = true;
+        bedrockIam.models = [];
+        updateApiKey.mockClear();
+        updateApiKeyEnabled.mockReset();
+        updateRouterModels.mockReset().mockImplementation(async (_router, models) => {
+            bedrockIam.models = models;
+            return true;
+        });
+    });
+
+    const saved = () => screen.getByRole("region", { name: "Saved Providers" });
+    const available = () => screen.getByRole("region", { name: "Available Providers" });
+
+    it("hides Amazon Bedrock (IAM) when it is not configured", () => {
+        bedrockIam.configured = false;
+        render(<ByokPage />);
+        expect(screen.queryByText("Amazon Bedrock (IAM)")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Add Amazon Bedrock (IAM)" })).not.toBeInTheDocument();
+    });
+
+    it("lists Amazon Bedrock (IAM) under Available with Add when it has no models", () => {
+        render(<ByokPage />);
+        expect(
+            within(available()).getByRole("button", { name: "Add Amazon Bedrock (IAM)" }),
+        ).toBeVisible();
+        expect(within(saved()).queryByText("Amazon Bedrock (IAM)")).not.toBeInTheDocument();
+    });
+
+    it("lists it under Saved with the switch on when it has models", () => {
+        bedrockIam.models = ["us.anthropic.claude-opus-5-5"];
+        render(<ByokPage />);
+        expect(
+            within(saved()).getByRole("button", { name: "Manage Amazon Bedrock (IAM)" }),
+        ).toBeVisible();
+        expect(
+            within(saved()).getByRole("switch", { name: "Amazon Bedrock (IAM) provider" }),
+        ).toBeChecked();
+        expect(within(available()).queryByText("Amazon Bedrock (IAM)")).not.toBeInTheDocument();
+    });
+
+    it("switching it off saves an empty selection and keeps the card under Saved", async () => {
+        bedrockIam.models = ["us.anthropic.claude-opus-5-5"];
+        const user = userEvent.setup();
+        render(<ByokPage />);
+        await user.click(screen.getByRole("switch", { name: "Amazon Bedrock (IAM) provider" }));
+        expect(updateRouterModels).toHaveBeenCalledWith("bedrock-iam", []);
+        expect(updateApiKeyEnabled).not.toHaveBeenCalled();
+        expect(
+            within(saved()).getByRole("switch", { name: "Amazon Bedrock (IAM) provider" }),
+        ).not.toBeChecked();
+        expect(within(available()).queryByText("Amazon Bedrock (IAM)")).not.toBeInTheDocument();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("switching it on opens the models window", async () => {
+        bedrockIam.models = ["us.anthropic.claude-opus-5-5"];
+        const user = userEvent.setup();
+        render(<ByokPage />);
+        const toggle = screen.getByRole("switch", { name: "Amazon Bedrock (IAM) provider" });
+        await user.click(toggle);
+        await user.click(toggle);
+        expect(screen.getByRole("dialog", { name: "Amazon Bedrock (IAM)" })).toBeVisible();
+        expect(updateRouterModels).toHaveBeenCalledTimes(1);
+        // Closed with no model added, it stays off.
+        await user.keyboard("{Escape}");
+        expect(
+            within(saved()).getByRole("switch", { name: "Amazon Bedrock (IAM) provider" }),
+        ).not.toBeChecked();
+    });
+
+    it("its window shows Model Selections and no key or region field", async () => {
+        const user = userEvent.setup();
+        render(<ByokPage />);
+        await user.click(screen.getByRole("button", { name: "Add Amazon Bedrock (IAM)" }));
+        const dialog = screen.getByRole("dialog", { name: "Amazon Bedrock (IAM)" });
+        expect(within(dialog).getByTestId("model-selections")).toHaveTextContent("bedrock-iam");
+        expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+        expect(within(dialog).queryByLabelText(/API Key/i)).not.toBeInTheDocument();
+        expect(within(dialog).queryByLabelText("AWS region")).not.toBeInTheDocument();
+        expect(within(dialog).queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+        expect(within(dialog).queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+        expect(within(dialog).queryByRole("switch")).not.toBeInTheDocument();
+    });
+
+    it("upstream Amazon Bedrock card is unchanged", async () => {
+        const user = userEvent.setup();
+        render(<ByokPage />);
+        await user.click(within(available()).getByRole("button", { name: "Add Amazon Bedrock" }));
+        const dialog = screen.getByRole("dialog", { name: "Amazon Bedrock" });
+        expect(within(dialog).getByLabelText("Amazon Bedrock API Key")).toBeVisible();
+        expect(within(dialog).getByLabelText("AWS region")).toBeVisible();
+        expect(within(dialog).getByRole("button", { name: "Save" })).toBeVisible();
+    });
 });
