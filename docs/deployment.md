@@ -8,7 +8,7 @@ storage instead of the infrastructure bundled with Docker Compose.
 - Node.js 22 or newer
 - npm and Git
 - A Supabase project
-- A Cloudflare R2, MinIO, or other S3-compatible bucket
+- A Cloudflare R2, MinIO, AWS S3, or other S3-compatible bucket
 - At least one supported model-provider API key, or an accessible Ollama server
 - Optional: a CourtListener API token for case-law tools
 - LibreOffice when DOC/DOCX-to-PDF conversion is required
@@ -231,6 +231,29 @@ The first deployment intentionally signs out sessions created by older builds:
 the web app deletes legacy Supabase local/session-storage entries and the Word
 add-in deletes legacy OfficeRuntime access/refresh tokens. Users authenticate
 once to establish the new cookie; tokens are not copied through JavaScript.
+
+### Object storage
+
+The backend talks to any S3-compatible store through the `R2_*` variables
+(the names predate support for other stores). `R2_ENDPOINT_URL` and
+`R2_BUCKET_NAME` name the store and bucket. `R2_REGION` sets the signing
+region and defaults to `auto`, which Cloudflare R2 expects; AWS S3 needs the
+bucket's region. `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` are static keys:
+set both, or leave both unset to let the AWS SDK's default credential chain
+sign instead (environment, shared config, or an ECS task or EC2 instance
+role). Setting only one of the two disables storage.
+
+For AWS S3 with an IAM role, for example on ECS:
+
+```bash
+R2_ENDPOINT_URL=https://s3.us-east-1.amazonaws.com
+R2_REGION=us-east-1
+R2_BUCKET_NAME=your-bucket
+# no R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY: the task role signs
+```
+
+A presigned URL stops working when the credentials that signed it expire, so
+with a role's temporary credentials a URL can lapse before its own expiry.
 
 ### Object-storage CORS for direct uploads
 
