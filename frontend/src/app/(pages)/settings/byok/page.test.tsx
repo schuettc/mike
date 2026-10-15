@@ -380,6 +380,20 @@ describe("BYOK page Amazon Bedrock (IAM)", () => {
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
+    it("removing its last model in the window keeps the card under Saved", async () => {
+        bedrockIam.models = ["us.anthropic.claude-opus-5-5"];
+        const user = userEvent.setup();
+        const { rerender } = render(<ByokPage />);
+        await user.click(within(saved()).getByRole("button", { name: "Manage Amazon Bedrock (IAM)" }));
+        // Model Selections saves as it goes: the profile now has none.
+        bedrockIam.models = [];
+        rerender(<ByokPage />);
+        expect(
+            within(saved()).getByRole("switch", { name: "Amazon Bedrock (IAM) provider" }),
+        ).not.toBeChecked();
+        expect(within(available()).queryByText("Amazon Bedrock (IAM)")).not.toBeInTheDocument();
+    });
+
     it("switching it on opens the models window", async () => {
         bedrockIam.models = ["us.anthropic.claude-opus-5-5"];
         const user = userEvent.setup();

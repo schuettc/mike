@@ -52,8 +52,12 @@ export default function ByokPage() {
     const [selectedProvider, setSelectedProvider] = useState<string | null>(
         null,
     );
-    const [bedrockIamSwitchedOff, setBedrockIamSwitchedOff] = useState(false);
     const bedrockIamOn = (profile?.bedrockIamModels?.length ?? 0) > 0;
+    // Once it has had models on this visit, the card stays under Saved until
+    // the page is left, however they were removed, so it does not move under
+    // the pointer.
+    const [bedrockIamSeenOn, setBedrockIamSeenOn] = useState(false);
+    if (bedrockIamOn && !bedrockIamSeenOn) setBedrockIamSeenOn(true);
     const providerFields = profile?.apiKeys["bedrock-iam"]?.configured
         ? MODEL_API_KEY_FIELDS.flatMap((field) =>
               field.provider === "bedrock" ? [field, BEDROCK_IAM_FIELD] : [field],
@@ -61,7 +65,7 @@ export default function ByokPage() {
         : MODEL_API_KEY_FIELDS;
     const isSaved = (field: ModelApiKeyField) =>
         field.provider === "bedrock-iam"
-            ? bedrockIamOn || bedrockIamSwitchedOff
+            ? bedrockIamOn || bedrockIamSeenOn
             : profile?.apiKeys[field.provider]?.source === "user";
     const selected = providerFields.find(
         (field) => field.provider === selectedProvider,
@@ -86,7 +90,6 @@ export default function ByokPage() {
             setSelectedProvider("bedrock-iam");
             return;
         }
-        setBedrockIamSwitchedOff(true);
         setBusyProvider("bedrock-iam");
         setToggleError(null);
         try {
