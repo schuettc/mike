@@ -1037,6 +1037,24 @@ describe("user.routes", () => {
             expect(saveUserApiKey).not.toHaveBeenCalled();
         });
 
+        it("saving a key for bedrock-iam is refused with 400", async () => {
+            const actual = await vi.importActual<
+                typeof import("../../modules/user/user.apiKeyStore")
+            >("../../modules/user/user.apiKeyStore");
+            normalizeApiKeyProvider.mockImplementation(
+                actual.normalizeApiKeyProvider,
+            );
+
+            const res = await request(app)
+                .put("/user/api-keys/bedrock-iam")
+                .set(...AUTH)
+                .send({ api_key: "x", settings: { region: "us-east-1" } });
+
+            expect(res.status).toBe(400);
+            expect(saveUserApiKey).not.toHaveBeenCalled();
+            expect(updateUserApiKeySettings).not.toHaveBeenCalled();
+        });
+
         it("stores a user key when the provider is also configured by the server env", async () => {
             hasEnvApiKey.mockReturnValue(true);
 

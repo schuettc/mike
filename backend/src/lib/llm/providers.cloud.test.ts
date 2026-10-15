@@ -133,12 +133,11 @@ describe("Amazon Bedrock adapter", () => {
     expect(headers.get("authorization")).toBe("Bearer env-key");
   });
 
-  it("createBedrockAdapter uses a credential provider and no apiKey in iam mode", async () => {
+  it("bedrock-iam adapter signs with SigV4 and ignores AWS_BEARER_TOKEN_BEDROCK", async () => {
     // The AWS credential chain resolves these (on ECS: the task role) and
     // the request is SigV4-signed instead of carrying a bearer token.
     vi.stubEnv("BEDROCK_AUTH", "iam");
     vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
-    // IAM mode is explicit: a bearer token left in the environment is not used.
     vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "stray-env-key");
     vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIA-task-role");
     vi.stubEnv("AWS_SECRET_ACCESS_KEY", "task-role-secret");
@@ -148,8 +147,13 @@ describe("Amazon Bedrock adapter", () => {
 
     await expect(
       completeWithProvider({
-        model: "bedrock/us.anthropic.claude-opus-5-5",
+        model: "bedrock-iam/us.anthropic.claude-opus-5-5",
         user: "Name this review",
+        // A user's Bedrock key is never read by bedrock-iam.
+        apiKeys: {
+          bedrock: "user-bedrock-key",
+          providerSettings: { bedrock: { region: "eu-west-2" } },
+        },
       }),
     ).resolves.toBe("Review title");
 

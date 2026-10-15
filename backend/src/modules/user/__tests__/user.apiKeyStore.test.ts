@@ -233,21 +233,22 @@ describe("cloud-platform keys", () => {
         expect(hasEnvApiKey("azure")).toBe(true);
     });
 
-    it("reports Bedrock IAM mode as configured without handing out a key", async () => {
+    it("key status reports bedrock-iam configured with source env only under IAM", async () => {
         process.env.BEDROCK_AUTH = "iam";
         process.env.BEDROCK_AWS_REGION = "us-east-1";
-        // Ignored in IAM mode: the credential chain signs, not this key.
-        process.env.AWS_BEARER_TOKEN_BEDROCK = "env-bedrock";
         const { db } = memoryDb();
 
-        expect(hasEnvApiKey("bedrock")).toBe(true);
-        await expect(getUserApiKeys("user-1", db)).resolves.toMatchObject({
-            bedrock: null,
-            providerSettings: { bedrock: { region: "us-east-1" } },
-        });
+        // Amazon Bedrock stays upstream: IAM does not configure it.
         await expect(getUserApiKeyStatus("user-1", db)).resolves.toMatchObject({
-            bedrock: true,
-            sources: { bedrock: "env" },
+            bedrock: false,
+            "bedrock-iam": true,
+            sources: { bedrock: null, "bedrock-iam": "env" },
+        });
+
+        delete process.env.BEDROCK_AUTH;
+        await expect(getUserApiKeyStatus("user-1", db)).resolves.toMatchObject({
+            "bedrock-iam": false,
+            sources: { "bedrock-iam": null },
         });
     });
 

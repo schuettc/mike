@@ -9,6 +9,7 @@ export type RouterSlug =
     | "vercel"
     | "opencode-go"
     | "bedrock"
+    | "bedrock-iam"
     | "azure"
     | "azure-foundry"
     | "vertex"
@@ -25,6 +26,7 @@ export const ROUTER_SLUGS: readonly RouterSlug[] = [
     "vercel",
     "opencode-go",
     "bedrock",
+    "bedrock-iam",
     "azure",
     "azure-foundry",
     "vertex",

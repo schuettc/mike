@@ -12,6 +12,7 @@ export type Provider =
     | "vercel"
     | "opencode-go"
     | "bedrock"
+    | "bedrock-iam"
     | "azure"
     | "azure-foundry"
     | "vertex"

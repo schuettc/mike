@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     hasApiKeyForModel,
     normalizeOptionalModelPreference,
@@ -14,6 +14,7 @@ const routerModels = {
     vercel: [],
     "opencode-go": ["glm-5"],
     bedrock: [],
+    "bedrock-iam": [],
     azure: [],
     "azure-foundry": [],
     vertex: [],
@@ -77,6 +78,24 @@ describe("hasApiKeyForModel for cloud platforms", () => {
                 azure: "k",
                 providerSettings: { azure: { endpoint: "contoso-openai" } },
             }),
+        ).toBe(true);
+    });
+});
+
+describe("hasApiKeyForModel for Amazon Bedrock (IAM)", () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it("a bedrock/<m> model is unavailable with only IAM configured", () => {
+        vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
+        vi.stubEnv("BEDROCK_AUTH", "iam");
+        vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+        expect(
+            hasApiKeyForModel("bedrock/us.anthropic.claude-opus-5-5", {}),
+        ).toBe(false);
+        expect(
+            hasApiKeyForModel("bedrock-iam/us.anthropic.claude-opus-5-5", {}),
         ).toBe(true);
     });
 });

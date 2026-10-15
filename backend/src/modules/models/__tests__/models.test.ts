@@ -637,7 +637,7 @@ describe("GET /models/bedrock", () => {
     });
 });
 
-describe("GET /models/bedrock in IAM mode", () => {
+describe("GET /models/bedrock-iam", () => {
     const fetchMock = vi.fn();
     const arn = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-5-5";
     beforeEach(() => {
@@ -647,12 +647,13 @@ describe("GET /models/bedrock in IAM mode", () => {
         bedrockClientConfigs.length = 0;
         vi.stubEnv("BEDROCK_AUTH", "iam");
         vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
-        vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "");
-        getUserApiKeys.mockResolvedValue({ providerSettings: { bedrock: { region: "us-east-1" } } });
+        // Never the key path: a user key and a stray env token are both ignored.
+        vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "stray-env-key");
+        getUserApiKeys.mockResolvedValue({ bedrock: "private-key", providerSettings: { bedrock: { region: "eu-west-2" } } });
     });
     afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.clearAllMocks(); });
 
-    it("listBedrockModels in iam mode lists via the SDK client", async () => {
+    it("GET /models/bedrock-iam lists through the SDK client", async () => {
         bedrockSend.mockImplementation(async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
             if (command.constructor.name === "ListFoundationModelsCommand") return { modelSummaries: [
                 { modelId: "anthropic.claude-sonnet-5-5", modelArn: arn, modelName: "Claude Sonnet 5.5", outputModalities: ["TEXT"], inferenceTypesSupported: ["ON_DEMAND"] },
@@ -664,7 +665,7 @@ describe("GET /models/bedrock in IAM mode", () => {
                 { inferenceProfileId: "a1b2c3d4e5f6", inferenceProfileName: "Acme team", type: "APPLICATION", status: "ACTIVE", models: [{ modelArn: arn }] },
             ] };
         });
-        const response = await request(app).get("/models/bedrock");
+        const response = await request(app).get("/models/bedrock-iam");
         expect(response.status).toBe(200);
         expect(response.body.models).toEqual([
             { id: "anthropic.claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
@@ -680,9 +681,18 @@ describe("GET /models/bedrock in IAM mode", () => {
 
     it("returns a safe failure when the role may not list models", async () => {
         bedrockSend.mockRejectedValue(Object.assign(new Error("User: arn:aws:sts::123456789012:assumed-role/x is not authorized"), { name: "AccessDeniedException" }));
-        const response = await request(app).get("/models/bedrock");
+        const response = await request(app).get("/models/bedrock-iam");
         expect(response.status).toBe(502);
         expect(JSON.stringify(response.body)).not.toContain("123456789012");
+    });
+
+    it("GET /models/bedrock-iam without IAM reports missing configuration", async () => {
+        vi.stubEnv("BEDROCK_AUTH", "");
+        const response = await request(app).get("/models/bedrock-iam");
+        expect(response.status).toBe(422);
+        expect(response.body.code).toBe("missing_api_key");
+        expect(bedrockSend).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });
 

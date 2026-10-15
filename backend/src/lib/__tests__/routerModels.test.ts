@@ -199,6 +199,7 @@ describe("router slugs", () => {
             vercel: [],
             "opencode-go": ["glm-5"],
             bedrock: ["us.anthropic.claude-opus-5-5"],
+            "bedrock-iam": [],
             azure: ["claude-opus-5-5"],
             "azure-foundry": [],
             vertex: [],

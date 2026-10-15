@@ -4,6 +4,7 @@ import type { Db } from "../../lib/supabase";
 import { logError } from "../../lib/log";
 import type { ProviderSettings, UserApiKeys } from "../../lib/llm";
 import {
+    bedrockIamCredentials,
     envAzureCredentials,
     envAzureFoundryCredentials,
     envBedrockCredentials,
@@ -57,8 +58,14 @@ export const orgKeyOwner = (orgId: string): ApiKeyOwner => ({
 });
 /** Providers whose key is only usable together with a non-secret setting. */
 export type SettingsApiKeyProvider = keyof ProviderSettings;
-export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
-    sources: Record<ApiKeyProvider, ApiKeySource>;
+/**
+ * Amazon Bedrock (IAM) runs on the deployment's AWS role and has no key, so
+ * it is reported in the status but is not an ApiKeyProvider: no key or
+ * organization-key endpoint accepts it, and no row is ever saved for it.
+ */
+export type ApiKeyStatusProvider = ApiKeyProvider | "bedrock-iam";
+export type ApiKeyStatus = Record<ApiKeyStatusProvider, boolean> & {
+    sources: Record<ApiKeyStatusProvider, ApiKeySource>;
     enabled: Partial<Record<ApiKeyProvider, boolean>>;
     /**
      * The settings saved with the user's own key. Deployment (env) settings
@@ -167,11 +174,8 @@ function envApiKey(provider: ApiKeyProvider): string | null {
             return process.env.OPENCODE_API_KEY?.trim() || null;
         // A cloud key without its region/endpoint cannot be used, so the
         // environment only counts as configured when both halves are set.
-        // IAM mode has no key to hand out; hasEnvApiKey reports it.
-        case "bedrock": {
-            const credentials = envBedrockCredentials();
-            return credentials?.auth === "apiKey" ? credentials.apiKey : null;
-        }
+        case "bedrock":
+            return envBedrockCredentials()?.apiKey ?? null;
         case "azure":
             return envAzureCredentials()?.apiKey ?? null;
         case "azure-foundry":
@@ -192,7 +196,6 @@ function envApiKey(provider: ApiKeyProvider): string | null {
 }
 
 export function hasEnvApiKey(provider: ApiKeyProvider): boolean {
-    if (provider === "bedrock") return envBedrockCredentials() !== null;
     return !!envApiKey(provider);
 }
 
@@ -334,6 +337,7 @@ function envApiKeyStatus(): ApiKeyStatus {
         vercel: false,
         "opencode-go": false,
         bedrock: false,
+        "bedrock-iam": false,
         azure: false,
         "azure-foundry": false,
         vertex: false,
@@ -349,6 +353,7 @@ function envApiKeyStatus(): ApiKeyStatus {
             vercel: null,
             "opencode-go": null,
             bedrock: null,
+            "bedrock-iam": null,
             azure: null,
             "azure-foundry": null,
             vertex: null,
@@ -365,6 +370,10 @@ function envApiKeyStatus(): ApiKeyStatus {
             status[provider] = true;
             status.sources[provider] = "env";
         }
+    }
+    if (bedrockIamCredentials()) {
+        status["bedrock-iam"] = true;
+        status.sources["bedrock-iam"] = "env";
     }
     return status;
 }
