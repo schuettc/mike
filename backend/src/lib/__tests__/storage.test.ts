@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
     normalizeDownloadFilename,
@@ -137,5 +137,100 @@ describe("versionStorageKey", () => {
     it("falls back to .bin for unknown extensions", () => {
         const key = versionStorageKey("user1", "doc1", "v2", "file");
         expect(key).toBe("documents/user1/doc1/versions/v2.bin");
+    });
+});
+
+// Client configuration from the environment. The presigner is real (pure
+// local crypto, no network), so the signed URL's X-Amz-Credential shows which
+// region and which access key the client actually signed with. Each case
+// sets process.env and imports a fresh copy of ../storage, the same
+// reset-then-dynamic-import pattern as storagePresign.test.ts.
+describe("storage client configuration", () => {
+    const ENV_KEYS = [
+        "STORAGE_DRIVER",
+        "R2_ENDPOINT_URL",
+        "R2_PUBLIC_ENDPOINT_URL",
+        "R2_REGION",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+    ];
+    let saved: Record<string, string | undefined>;
+
+    beforeEach(() => {
+        saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+        for (const k of ENV_KEYS) delete process.env[k];
+        process.env.R2_ENDPOINT_URL = "https://s3.us-east-1.amazonaws.com";
+        process.env.R2_BUCKET_NAME = "mike";
+    });
+
+    afterEach(() => {
+        for (const k of ENV_KEYS) {
+            if (saved[k] === undefined) delete process.env[k];
+            else process.env[k] = saved[k];
+        }
+    });
+
+    async function loadStorage() {
+        vi.resetModules();
+        return import("../storage.js");
+    }
+
+    function credentialScope(url: string | null): string[] {
+        expect(url).not.toBeNull();
+        const credential = new URL(url!).searchParams.get("X-Amz-Credential");
+        expect(credential).toBeTruthy();
+        // <access-key>/<date>/<region>/s3/aws4_request
+        return credential!.split("/");
+    }
+
+    function setStaticKeys() {
+        process.env.R2_ACCESS_KEY_ID = "r2-access-key";
+        process.env.R2_SECRET_ACCESS_KEY = "r2-secret-key";
+    }
+
+    it("uses R2_REGION when set", async () => {
+        setStaticKeys();
+        process.env.R2_REGION = "us-east-1";
+        const { getSignedUrl } = await loadStorage();
+
+        const scope = credentialScope(await getSignedUrl("some/key"));
+
+        expect(scope[2]).toBe("us-east-1");
+    });
+
+    it("defaults region to auto", async () => {
+        setStaticKeys();
+        const { getSignedUrl } = await loadStorage();
+
+        const scope = credentialScope(await getSignedUrl("some/key"));
+
+        expect(scope[2]).toBe("auto");
+    });
+
+    it("omits static credentials when no R2 keys are set", async () => {
+        // The default AWS chain reads these first, so a client built without
+        // static credentials signs with them (in ECS, the task role instead).
+        process.env.AWS_ACCESS_KEY_ID = "chain-access-key";
+        process.env.AWS_SECRET_ACCESS_KEY = "chain-secret-key";
+        const { getSignedUrl, storageEnabled } = await loadStorage();
+
+        expect(storageEnabled).toBe(true);
+        const scope = credentialScope(await getSignedUrl("some/key"));
+
+        expect(scope[0]).toBe("chain-access-key");
+    });
+
+    it("rejects a half-set key pair", async () => {
+        process.env.R2_ACCESS_KEY_ID = "r2-access-key";
+        const { storageEnabled, assertStorageConfigured } = await loadStorage();
+
+        expect(storageEnabled).toBe(false);
+        expect(() => assertStorageConfigured()).toThrow(
+            /R2_ACCESS_KEY_ID.*R2_SECRET_ACCESS_KEY/,
+        );
     });
 });

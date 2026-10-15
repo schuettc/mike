@@ -1,12 +1,19 @@
 /**
- * Cloudflare R2 storage utilities for Mike document management.
- * R2 is S3-compatible — uses @aws-sdk/client-s3.
+ * S3-compatible storage utilities for Mike document management (Cloudflare
+ * R2, MinIO, AWS S3, ...) — uses @aws-sdk/client-s3.
  *
- * Required env vars:
- *   R2_ENDPOINT_URL     — https://<account-id>.r2.cloudflarestorage.com
- *   R2_ACCESS_KEY_ID    — R2 API token (Access Key ID)
- *   R2_SECRET_ACCESS_KEY — R2 API token (Secret Access Key)
- *   R2_BUCKET_NAME      — bucket name (default: "mike")
+ * Env vars:
+ *   R2_ENDPOINT_URL      — required; e.g. https://<account-id>.r2.cloudflarestorage.com
+ *                          or https://s3.us-east-1.amazonaws.com
+ *   R2_REGION            — signing region (default: "auto", which R2 expects;
+ *                          AWS S3 needs the bucket's region, e.g. us-east-1)
+ *   R2_ACCESS_KEY_ID     — static access key ID
+ *   R2_SECRET_ACCESS_KEY — static secret access key
+ *   R2_BUCKET_NAME       — bucket name (default: "mike")
+ *
+ * Set both keys, or neither: with neither, the SDK's default credential chain
+ * signs instead (environment, shared config, or an ECS task / EC2 instance
+ * role). Exactly one of the two is a misconfiguration and disables storage.
  */
 
 import {
@@ -118,18 +125,32 @@ const CHECKSUM_DEFAULTS = {
   responseChecksumValidation: "WHEN_REQUIRED",
 } as const;
 
+// Static keys when both are set; otherwise no `credentials` at all, so the
+// SDK falls back to its default provider chain (an ECS task role, for one).
+// storageEnabled rules out the half-set case before any client is built.
+function staticCredentials():
+  | { credentials: { accessKeyId: string; secretAccessKey: string } }
+  | Record<string, never> {
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  return accessKeyId && secretAccessKey
+    ? { credentials: { accessKeyId, secretAccessKey } }
+    : {};
+}
+
+function clientConfig(endpoint: string) {
+  return {
+    region: process.env.R2_REGION || "auto",
+    endpoint,
+    forcePathStyle: true,
+    ...CHECKSUM_DEFAULTS,
+    ...staticCredentials(),
+  };
+}
+
 function getClient(): S3Client {
   if (!cachedClient) {
-    cachedClient = new S3Client({
-      region: "auto",
-      endpoint: process.env.R2_ENDPOINT_URL!,
-      forcePathStyle: true,
-      ...CHECKSUM_DEFAULTS,
-      credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-      },
-    });
+    cachedClient = new S3Client(clientConfig(process.env.R2_ENDPOINT_URL!));
   }
   return cachedClient;
 }
@@ -149,16 +170,7 @@ function getBrowserSigningClient(): S3Client {
   if (cachedBrowserSigningClient?.endpoint === endpoint) {
     return cachedBrowserSigningClient.client;
   }
-  const client = new S3Client({
-    region: "auto",
-    endpoint,
-    forcePathStyle: true,
-    ...CHECKSUM_DEFAULTS,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-    },
-  });
+  const client = new S3Client(clientConfig(endpoint));
   cachedBrowserSigningClient = { endpoint, client };
   return client;
 }
@@ -167,18 +179,16 @@ const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";
 
 export const storageEnabled = FS_DRIVER
   ? Boolean(FS_ROOT)
-  : Boolean(
-      process.env.R2_ENDPOINT_URL &&
-      process.env.R2_ACCESS_KEY_ID &&
-      process.env.R2_SECRET_ACCESS_KEY,
-    );
+  : Boolean(process.env.R2_ENDPOINT_URL) &&
+    Boolean(process.env.R2_ACCESS_KEY_ID) ===
+      Boolean(process.env.R2_SECRET_ACCESS_KEY);
 
 function requireStorageConfig(): void {
   if (!storageEnabled) {
     throw new Error(
       FS_DRIVER
         ? "STORAGE_FS_ROOT must be set when STORAGE_DRIVER=fs"
-        : "R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY must be set",
+        : "R2_ENDPOINT_URL must be set, and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY must be set together or both left unset (to use the default AWS credential chain)",
     );
   }
 }
