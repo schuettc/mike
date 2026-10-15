@@ -22,6 +22,7 @@ import {
     listOpenCodeGoModels,
     listOpenRouterModels,
     listVercelModels,
+    listBedrockIamModels,
     listBedrockModels,
     listCustomEndpointModels,
     listXaiModels,
@@ -111,6 +112,11 @@ modelsRouter.get("/opencode-go", requireAuth, (req, res) =>
 
 modelsRouter.get("/bedrock", requireAuth, (req, res) =>
     sendCatalog(req, res, listBedrockModels),
+);
+
+// GET /models/bedrock-iam
+modelsRouter.get("/bedrock-iam", requireAuth, (req, res) =>
+    sendCatalog(req, res, listBedrockIamModels),
 );
 
 // GET /models/xai

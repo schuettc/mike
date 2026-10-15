@@ -1447,6 +1447,16 @@ describe("organization provider keys", () => {
         ]);
     });
 
+    it("saving an organization key for bedrock-iam is refused with 400", async () => {
+        const res = await saveKey("bedrock-iam", {
+            api_key: SECRET,
+            settings: { region: "us-east-1" },
+        });
+
+        expect(res.status).toBe(400);
+        expect(tables.org_api_keys).toHaveLength(0);
+    });
+
     it("lets an admin manage keys too", async () => {
         as("admin-1", "admin@firm.example");
         expect((await saveKey()).status).toBe(200);

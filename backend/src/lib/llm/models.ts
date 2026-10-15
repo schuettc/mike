@@ -52,7 +52,7 @@ const ALWAYS_REASONING_LEVELS: readonly ReasoningLevel[] =
 export function reasoningLevelsForModel(
     model: string,
 ): readonly ReasoningLevel[] {
-    const catalogId = model.startsWith("bedrock/")
+    const catalogId = /^bedrock(?:-iam)?\//.test(model)
         ? // Bedrock names Claude "anthropic.claude-…", optionally behind a
           // cross-region inference-profile prefix ("us.", "us-gov.") or at
           // the end of an inference-profile ARN, after its last "/".
@@ -168,6 +168,7 @@ export function providerForModel(model: string): Provider {
     if (model.startsWith("vercel/")) return "vercel";
     if (model.startsWith("opencode-go/")) return "opencode-go";
     if (model.startsWith("bedrock/")) return "bedrock";
+    if (model.startsWith("bedrock-iam/")) return "bedrock-iam";
     if (model.startsWith("azure/")) return "azure";
     if (model.startsWith("azure-foundry/")) return "azure-foundry";
     if (model.startsWith("vertex/")) return "vertex";
@@ -214,6 +215,7 @@ export const LEGACY_MODEL_IDS: Record<string, string> = {
  */
 export const ACCOUNT_MODEL_PREFIXES = [
     "bedrock",
+    "bedrock-iam",
     "azure",
     "azure-foundry",
     "vertex",
@@ -225,6 +227,7 @@ export type AccountModelPrefix = (typeof ACCOUNT_MODEL_PREFIXES)[number];
 /** Each account-specific provider as the settings UI names it. */
 export const ACCOUNT_MODEL_LABELS: Record<AccountModelPrefix, string> = {
     bedrock: "Amazon Bedrock",
+    "bedrock-iam": "Amazon Bedrock (IAM)",
     azure: "Azure OpenAI",
     "azure-foundry": "Azure AI Foundry",
     vertex: "Google Vertex AI",
@@ -346,6 +349,11 @@ export function vercelModelId(model: string): string {
 /** Bedrock model or inference-profile id, without the app-level prefix. */
 export function bedrockModelId(model: string): string {
     return model.replace(/^bedrock\//, "");
+}
+
+/** Bedrock model or inference-profile id behind an Amazon Bedrock (IAM) id. */
+export function bedrockIamModelId(model: string): string {
+    return model.replace(/^bedrock-iam\//, "");
 }
 
 /** Azure OpenAI deployment name, without the app-level prefix. */

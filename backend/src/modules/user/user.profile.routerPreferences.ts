@@ -41,6 +41,7 @@ const ROUTER_MODEL_ID_CHECK: Record<RouterSlug, ModelIdCheck> = {
     // URLs, so they must pass the strict grammar in isSafeAccountModelId —
     // the same check resolveModel applies at request time.
     bedrock: accountModelId("bedrock"),
+    "bedrock-iam": accountModelId("bedrock-iam"),
     azure: accountModelId("azure"),
     "azure-foundry": accountModelId("azure-foundry"),
     vertex: accountModelId("vertex"),
@@ -57,6 +58,7 @@ export const ROUTER_PROFILE_FIELDS: Record<RouterSlug, string> = {
     vercel: "vercelModels",
     "opencode-go": "openCodeGoModels",
     bedrock: "bedrockModels",
+    "bedrock-iam": "bedrockIamModels",
     azure: "azureModels",
     "azure-foundry": "azureFoundryModels",
     vertex: "vertexModels",

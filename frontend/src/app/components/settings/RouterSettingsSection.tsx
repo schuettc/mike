@@ -12,6 +12,7 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import {
   getOpenCodeGoModels,
   getBedrockModels,
+  getBedrockIamModels,
   getCustomEndpointModels,
   getXaiModels,
   getOpenRouterModels,
@@ -94,6 +95,11 @@ const ROUTER_MODEL_ID: Record<
   },
   bedrock: {
     accepts: accountModelId("bedrock"),
+    shape: "a Bedrock model or inference-profile ID with no spaces",
+    example: "us.anthropic.claude-opus-5-5",
+  },
+  "bedrock-iam": {
+    accepts: accountModelId("bedrock-iam"),
     shape: "a Bedrock model or inference-profile ID with no spaces",
     example: "us.anthropic.claude-opus-5-5",
   },
@@ -184,6 +190,11 @@ const ROUTER_SETTINGS: readonly {
     label: "Amazon Bedrock",
     loadCatalog: getBedrockModels,
     catalogScope: (settings) => settings?.bedrock?.region,
+  },
+  {
+    provider: "bedrock-iam",
+    label: "Amazon Bedrock (IAM)",
+    loadCatalog: getBedrockIamModels,
   },
   { provider: "azure", label: "Azure OpenAI" },
   { provider: "azure-foundry", label: "Azure AI Foundry" },

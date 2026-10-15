@@ -7,6 +7,7 @@
 /** Router slugs whose model ids are account-specific (typed, not listed). */
 export const ACCOUNT_MODEL_PROVIDERS = [
   "bedrock",
+  "bedrock-iam",
   "azure",
   "azure-foundry",
   "vertex",

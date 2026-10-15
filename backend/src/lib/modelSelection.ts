@@ -14,6 +14,7 @@ import {
     azureCredentials,
     azureFoundryCredentials,
     bedrockCredentials,
+    bedrockIamCredentials,
     customEndpointCredentials,
     vertexCredentials,
 } from "./llm/cloudProviders";
@@ -100,6 +101,7 @@ export function hasApiKeyForModel(
         );
     }
     if (provider === "bedrock") return bedrockCredentials(apiKeys) !== null;
+    if (provider === "bedrock-iam") return bedrockIamCredentials() !== null;
     if (provider === "azure") return azureCredentials(apiKeys) !== null;
     if (provider === "azure-foundry") {
         return azureFoundryCredentials(apiKeys) !== null;
@@ -250,6 +252,7 @@ export function titleModelForChat(
         case "vercel":
         case "opencode-go":
         case "bedrock":
+        case "bedrock-iam":
         case "azure":
         case "azure-foundry":
         case "vertex":

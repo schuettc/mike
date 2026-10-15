@@ -27,6 +27,7 @@ vi.mock("@/app/lib/mikeApi", () => ({
     getOpenRouterModels,
     getVercelModels: vi.fn().mockResolvedValue([]),
     getBedrockModels,
+    getBedrockIamModels: vi.fn().mockResolvedValue([]),
     getOpenCodeGoModels,
     getXaiModels,
     getCustomEndpointModels,

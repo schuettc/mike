@@ -63,7 +63,7 @@ const ALWAYS_REASONING_LEVELS: readonly ReasoningLevel[] =
 export function reasoningLevelsForModel(
   modelId: string,
 ): readonly ReasoningLevel[] {
-  const catalogId = modelId.startsWith("bedrock/")
+  const catalogId = /^bedrock(?:-iam)?\//.test(modelId)
     ? // Bedrock names Claude "anthropic.claude-…", optionally behind a
       // cross-region inference-profile prefix ("us.", "us-gov.") or at the
       // end of an inference-profile ARN, after its last "/".

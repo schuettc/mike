@@ -77,10 +77,13 @@ the provider is reported as not configured and is unusable for that user until
 it is fixed: it does not fall back to the deployment's pair.
 
 A deployment running on AWS can set `BEDROCK_AUTH=iam` with
-`BEDROCK_AWS_REGION` instead of a Bedrock key: Mike then signs Bedrock
-requests with the AWS default credential chain (for example an ECS task role),
-and ignores `AWS_BEARER_TOKEN_BEDROCK`. A user's own saved key still takes
-precedence.
+`BEDROCK_AWS_REGION` to enable the Amazon Bedrock (IAM) provider, a separate
+provider next to Amazon Bedrock. It signs Bedrock requests with the AWS default
+credential chain (for example an ECS task role) and takes no key: it never
+reads a user's or organization's key or `AWS_BEARER_TOKEN_BEDROCK`. Users
+enable it by adding models under Model Selections; its model ids are
+`bedrock-iam/<model or inference profile id>`. Amazon Bedrock itself is
+unaffected and still runs on a key.
 
 Once the key is saved, open the provider in Bring Your Own Keys and add models
 under Model Selections. Bedrock lists the region's text foundation models and

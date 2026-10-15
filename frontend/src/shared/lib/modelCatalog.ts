@@ -99,6 +99,7 @@ export const ROUTER_SLUGS = [
   "vercel",
   "opencode-go",
   "bedrock",
+  "bedrock-iam",
   "azure",
   "azure-foundry",
   "vertex",
@@ -117,6 +118,7 @@ export const ROUTER_PROFILE_FIELDS = {
   vercel: "vercelModels",
   "opencode-go": "openCodeGoModels",
   bedrock: "bedrockModels",
+  "bedrock-iam": "bedrockIamModels",
   azure: "azureModels",
   "azure-foundry": "azureFoundryModels",
   vertex: "vertexModels",
@@ -208,7 +210,7 @@ const MODEL_NAME_ACRONYMS: Record<string, string> = {
 export function modelDisplayName(modelId: string): string {
   const normalized = modelId
     .replace(
-      /^(?:openrouter|vercel|opencode-go|bedrock|azure-foundry|azure|vertex|xai|custom|ollama)\//,
+      /^(?:openrouter|vercel|opencode-go|bedrock|bedrock-iam|azure-foundry|azure|vertex|xai|custom|ollama)\//,
       "",
     )
     .split("/")
@@ -355,6 +357,7 @@ const ROUTER_OPTIONS: Record<
   vercel: { source: "Vercel" },
   "opencode-go": { source: "OpenCode" },
   bedrock: { source: "Bedrock", catalogModel: bedrockCatalogModel },
+  "bedrock-iam": { source: "Bedrock (IAM)", catalogModel: bedrockCatalogModel },
   azure: { source: "Azure" },
   "azure-foundry": { source: "Foundry", catalogModel: withoutExplicitProtocol },
   vertex: { source: "Vertex", catalogModel: vertexCatalogModel },
@@ -487,6 +490,7 @@ const PROVIDER_NAMES: Record<
   vercel: { name: "Vercel AI Gateway" },
   "opencode-go": { name: "OpenCode Go" },
   bedrock: { name: "Amazon Bedrock" },
+  "bedrock-iam": { name: "Amazon Bedrock (IAM)" },
   azure: { name: "Azure OpenAI" },
   "azure-foundry": { name: "Azure AI Foundry" },
   vertex: { name: "Google Vertex AI" },

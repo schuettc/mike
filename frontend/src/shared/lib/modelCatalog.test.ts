@@ -74,6 +74,16 @@ describe("cloud platform options", () => {
         });
     });
 
+    it("picker rows for bedrock-iam are tagged Bedrock (IAM) and named without the prefix", () => {
+        expect(routerModelOptions("bedrock-iam", ["us.anthropic.claude-opus-5-5"])[0]).toEqual({
+            id: "bedrock-iam/us.anthropic.claude-opus-5-5",
+            label: "Claude Opus 5.5",
+            group: "Anthropic",
+            source: "Bedrock (IAM)",
+        });
+        expect(modelDisplayName("bedrock-iam/claude-opus-5-5")).toBe("Claude Opus 5.5");
+    });
+
     it("reads Vertex ids without the version pin or partner suffix", () => {
         expect(vertexCatalogModel("claude-opus-5-5@20260101")).toBe(
             "claude-opus-5-5",

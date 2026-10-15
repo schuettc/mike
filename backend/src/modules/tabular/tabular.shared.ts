@@ -115,6 +115,7 @@ function providerLabel(provider: Provider): string {
     if (provider === "vercel") return "Vercel AI Gateway";
     if (provider === "opencode-go") return "OpenCode Go";
     if (provider === "bedrock") return "Amazon Bedrock";
+    if (provider === "bedrock-iam") return "Amazon Bedrock (IAM)";
     if (provider === "azure") return "Azure OpenAI";
     if (provider === "azure-foundry") return "Azure AI Foundry";
     if (provider === "vertex") return "Google Vertex AI";

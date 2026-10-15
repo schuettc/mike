@@ -1,5 +1,5 @@
 {
-  "accountModelProviders": ["bedrock", "azure", "azure-foundry", "vertex", "xai", "custom"],
+  "accountModelProviders": ["bedrock", "bedrock-iam", "azure", "azure-foundry", "vertex", "xai", "custom"],
   "accountModelIds": [
     {"id": "anthropic:prod-sonnet", "providers": ["vertex", "azure-foundry"], "valid": true, "why": "explicit protocol with a deployment name"},
     {"id": "openai:meta/llama-4", "providers": ["vertex"], "valid": true, "why": "explicit OpenAI protocol with a publisher/model id"},
