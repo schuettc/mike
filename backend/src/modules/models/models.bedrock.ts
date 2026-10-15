@@ -30,28 +30,48 @@ export async function listBedrockModels(
     }
     if (!credentials) return {
         ok: false, kind: "missing_api_key", code: "missing_api_key",
-        detail: "An Amazon Bedrock API key and AWS region are required to list models.",
+        detail: "An Amazon Bedrock API key and AWS region (or BEDROCK_AUTH=iam on the server) are required to list models.",
     };
-    const { apiKey, region } = credentials;
+    const { region } = credentials;
     try {
         // Operator application profiles contain private account identifiers.
+        // IAM mode only ever runs on the deployment's own AWS account.
         const env = envBedrockCredentials();
-        const operatorAccount = !!env && env.apiKey === apiKey;
+        const operatorAccount = credentials.auth === "iam" ||
+            (env?.auth === "apiKey" && env.apiKey === credentials.apiKey);
         const base = bedrockServiceUrl("bedrock", region);
         const signal = AbortSignal.timeout(15_000);
-        const read = async (path: string): Promise<Record<string, unknown>> => {
-            const response = await fetch(`${base}${path}`, {
-                headers: { Authorization: `Bearer ${apiKey}` },
-                redirect: "error", signal,
-            });
-            // Do not retain provider response bodies: they may contain account or credential details.
-            if (!response.ok) throw new Error(`Bedrock model catalog request failed (${response.status})`);
-            const payload: unknown = await response.json();
-            if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Invalid Bedrock catalog response");
-            return payload as Record<string, unknown>;
-        };
+        let read: (path: "foundation" | "profiles", nextToken?: string) => Promise<Record<string, unknown>>;
+        if (credentials.auth === "iam") {
+            const { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } = await import("@aws-sdk/client-bedrock");
+            // Explicit endpoint, as for API keys: never AWS_ENDPOINT_URL* from the environment.
+            const client = new BedrockClient({ region, endpoint: base });
+            read = async (path, nextToken) => {
+                const payload: unknown = path === "foundation"
+                    ? await client.send(new ListFoundationModelsCommand({ byOutputModality: "TEXT" }), { abortSignal: signal })
+                    : await client.send(new ListInferenceProfilesCommand({ maxResults: 1000, ...(nextToken ? { nextToken } : {}) }), { abortSignal: signal });
+                if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Invalid Bedrock catalog response");
+                return payload as Record<string, unknown>;
+            };
+        } else {
+            const { apiKey } = credentials;
+            read = async (path, nextToken) => {
+                const url = path === "foundation"
+                    ? `${base}/foundation-models?byOutputModality=TEXT`
+                    : `${base}/inference-profiles?maxResults=1000${nextToken ? `&nextToken=${encodeURIComponent(nextToken)}` : ""}`;
+                const response = await fetch(url, {
+                    headers: { Authorization: `Bearer ${apiKey}` },
+                    redirect: "error", signal,
+                });
+                // Do not retain provider response bodies: they may contain account or credential details.
+                if (!response.ok) throw new Error(`Bedrock model catalog request failed (${response.status})`);
+                const payload: unknown = await response.json();
+                if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Invalid Bedrock catalog response");
+                return payload as Record<string, unknown>;
+            };
+        }
         const models = new Map<string, CatalogModel>();
-        const foundation = await read("/foundation-models?byOutputModality=TEXT");
+        const foundation = await read("foundation");
         if (!Array.isArray(foundation.modelSummaries)) throw new Error("Invalid Bedrock foundation model list");
         const textArns = new Set<string>();
         for (const model of foundation.modelSummaries) {
@@ -63,7 +83,7 @@ export async function listBedrockModels(
         let token: string | undefined;
         const seen = new Set<string>();
         do {
-            const profiles = await read(`/inference-profiles?maxResults=1000${token ? `&nextToken=${encodeURIComponent(token)}` : ""}`);
+            const profiles = await read("profiles", token);
             if (!Array.isArray(profiles.inferenceProfileSummaries)) throw new Error("Invalid Bedrock inference profile list");
             for (const profile of profiles.inferenceProfileSummaries) {
                 if (!profile || !modelId(profile.inferenceProfileId) || profile.status !== "ACTIVE") continue;

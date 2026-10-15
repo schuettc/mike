@@ -249,14 +249,25 @@ async function createBedrockAdapter(
   const credentials = bedrockCredentials(apiKeys);
   if (!credentials) {
     throw new Error(
-      "Amazon Bedrock API key is not configured. Set AWS_BEARER_TOKEN_BEDROCK and BEDROCK_AWS_REGION or add a user Amazon Bedrock key and region.",
+      "Amazon Bedrock API key is not configured. Set AWS_BEARER_TOKEN_BEDROCK and BEDROCK_AWS_REGION, set BEDROCK_AUTH=iam and BEDROCK_AWS_REGION, or add a user Amazon Bedrock key and region.",
     );
   }
   const { createAmazonBedrock } = await import("@ai-sdk/amazon-bedrock");
   // An explicit apiKey makes the SDK use bearer auth and never fall back to
   // ambient AWS credentials (which a deployment may hold for S3 storage).
+  // IAM mode is the operator's explicit choice of those credentials: the
+  // SDK signs with whatever the AWS credential chain resolves. Its empty
+  // apiKey keeps the SDK from reading AWS_BEARER_TOKEN_BEDROCK instead.
+  const auth =
+    credentials.auth === "iam"
+      ? {
+          apiKey: "",
+          credentialProvider: (await import("@aws-sdk/credential-providers"))
+            .fromNodeProviderChain(),
+        }
+      : { apiKey: credentials.apiKey };
   const bedrock = createAmazonBedrock({
-    apiKey: credentials.apiKey,
+    ...auth,
     region: credentials.region,
     // Explicit, or the SDK prefers AWS_ENDPOINT_URL_BEDROCK_RUNTIME /
     // AWS_ENDPOINT_URL from the environment and sends the key there.

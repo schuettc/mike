@@ -9,12 +9,21 @@
 // deployment's environment key travels with the environment's
 // region/endpoint. Mixing them would send a user's key to the operator's
 // Azure resource, or the operator's key to a resource the user chose.
+//
+// Bedrock has a second deployment form: with BEDROCK_AUTH=iam the backend
+// signs requests with the AWS credential chain (on ECS, the task role)
+// instead of an API key. It is chosen explicitly, never as a fallback, so a
+// deployment holding AWS credentials for S3 does not start using them for
+// Bedrock.
 
 import { canonicalHostname, isBlockedHostname } from "../mcp/types";
 import { isBlockedIp } from "../privateIp";
 import type { ProviderSettings, UserApiKeys } from "./types";
 
-export type BedrockCredentials = { apiKey: string; region: string };
+export type BedrockCredentials = { region: string } & (
+    | { auth: "apiKey"; apiKey: string }
+    | { auth: "iam" }
+);
 export type AzureCredentials = { apiKey: string; endpoint: string };
 export type AzureFoundryCredentials = { apiKey: string; endpoint: string };
 export type VertexServiceAccount = {
@@ -351,11 +360,19 @@ export function envVertexCredentials(): VertexCredentials | null {
     return account && location ? { ...account, location } : null;
 }
 
-/** The deployment's own Bedrock credentials, when both halves are set. */
+/**
+ * The deployment's own Bedrock credentials: the AWS credential chain when
+ * BEDROCK_AUTH=iam and a region are set, otherwise an API key and region
+ * when both halves are set.
+ */
 export function envBedrockCredentials(): BedrockCredentials | null {
-    const apiKey = envBedrockApiKey();
     const region = envBedrockRegion();
-    return apiKey && region ? { apiKey, region } : null;
+    if (!region) return null;
+    if (process.env.BEDROCK_AUTH?.trim().toLowerCase() === "iam") {
+        return { auth: "iam", region };
+    }
+    const apiKey = envBedrockApiKey();
+    return apiKey ? { auth: "apiKey", apiKey, region } : null;
 }
 
 /** The deployment's own Azure OpenAI credentials, when both halves are set. */
@@ -394,7 +411,7 @@ export function bedrockCredentials(
         const region = normalizeAwsRegion(
             apiKeys?.providerSettings?.bedrock?.region,
         );
-        return region ? { apiKey, region } : null;
+        return region ? { auth: "apiKey", apiKey, region } : null;
     }
     return envBedrockCredentials();
 }
