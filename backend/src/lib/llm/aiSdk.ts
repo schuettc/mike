@@ -484,6 +484,13 @@ export async function streamAiSdk(
           },
         }
       : {}),
+    // Claude on Bedrock omits thinking text by default, so nothing streams
+    // until thinking ends and a long think trips providerDeadlines'
+    // first-chunk limit. Summarized thinking keeps reasoning deltas flowing.
+    // The SDK sends display only with adaptive thinking.
+    ...(config.provider === "bedrock" || config.provider === "bedrock-iam"
+      ? { bedrock: { reasoningConfig: { display: "summarized" } } }
+      : {}),
   };
   const rawStreamRecorder = createRawLlmStreamRecorder({
     provider: config.provider,

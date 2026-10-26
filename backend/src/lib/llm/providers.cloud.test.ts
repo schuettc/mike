@@ -208,6 +208,32 @@ describe("Amazon Bedrock adapter", () => {
     expect(haiku.inferenceConfig).toMatchObject({ maxTokens: 64_000 });
   });
 
+  // Opus 5.5 on Bedrock omits thinking text by default, so the stream is
+  // silent until thinking ends. A long think on several contracts outran
+  // providerDeadlines' first-chunk limit and the chat failed as "stopped
+  // responding". Summarized thinking streams reasoning deltas meanwhile.
+  it("asks Bedrock Claude for summarized thinking so the stream is never silent", async () => {
+    const keyed = await converseBodyForChat(
+      "bedrock/us.anthropic.claude-opus-5-5",
+      "high",
+    );
+    expect(keyed.additionalModelRequestFields).toMatchObject({
+      thinking: { type: "adaptive", display: "summarized" },
+    });
+
+    vi.stubEnv("BEDROCK_AUTH", "iam");
+    vi.stubEnv("BEDROCK_AWS_REGION", "us-east-1");
+    vi.stubEnv("AWS_ACCESS_KEY_ID", "AKIA-task-role");
+    vi.stubEnv("AWS_SECRET_ACCESS_KEY", "task-role-secret");
+    const iam = await converseBodyForChat(
+      "bedrock-iam/global.anthropic.claude-opus-5-5",
+      "high",
+    );
+    expect(iam.additionalModelRequestFields).toMatchObject({
+      thinking: { type: "adaptive", display: "summarized" },
+    });
+  });
+
   it("leaves non-Claude Bedrock models to their own default", async () => {
     const body = await converseBodyForChat("bedrock/meta.llama4-maverick-v1:0", "none");
     expect(
